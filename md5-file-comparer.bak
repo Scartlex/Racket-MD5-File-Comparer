@@ -1,0 +1,68 @@
+#lang racket
+(require file/md5)
+
+(define (compare-directories directory1 directory2)
+  (display "Creating the MD-5 checksum for all files. This may take some time. After this the comparison process will start...")
+  (let* ((all-files-in-directory1  (sort (filter-only-files (map (lambda (path) (path->string path)) (directory-list directory1))) numerical-less?))
+         (all-files-in-directory2  (sort (filter-only-files (map (lambda (path) (path->string path)) (directory-list directory2))) numerical-less?))
+         (all-md5-codes-directory1 (map (lambda (path) (display (string-append "\tGenerating MD-5 checksum for file " path " in directory 1...\n")) (md5 (file->bytes (string-append directory1 path)))) all-files-in-directory1))
+         (all-md5-codes-directory2 (map (lambda (path) (display (string-append "\tGenerating MD-5 checksum for file " path " in directory 2...\n")) (md5 (file->bytes (string-append directory2 path)))) all-files-in-directory2)))
+    (define md5-codes-directory2 all-md5-codes-directory2)
+    (define all-files-directory2 all-files-in-directory2)
+    (let first-loop ((md5-directory1   all-md5-codes-directory1)
+                     (files-directory1 all-files-in-directory1)
+                     (first-counter 1)
+                     (return-list '()))
+      (display (string-append "Please be patient. Comparing file " (number->string first-counter) "/" (number->string (length all-files-in-directory1)) " from directory 1...\n"))
+      (if (not (null? md5-directory1))
+          (let second-loop ((md5-directory2 md5-codes-directory2)
+                            (files-directory2 all-files-directory2)
+                            (second-counter 1))
+            (cond
+              ((null? md5-directory2)
+               (display (string-append (car files-directory1) " is not apparant in the second directory.\n"))
+               (copy-file (string-append directory1 (car files-directory1)) (string-append directory1 "filtered\\" (car files-directory1)))
+               (first-loop (cdr md5-directory1) (cdr files-directory1) (+ first-counter 1) (cons (car files-directory2) return-list)))
+              ((equal? (car md5-directory1) (car md5-directory2))
+               (display (car md5-directory1)) (display " == ") (display (car md5-directory2)) (display ", so ") (display (car files-directory1)) (display " == ") (display (car files-directory2)) (newline)
+               (set! md5-codes-directory2 (slice-list md5-codes-directory2 (- second-counter 1)))
+               (set! all-files-directory2 (slice-list all-files-directory2 (- second-counter 1)))
+               (first-loop (cdr md5-directory1) (cdr files-directory1) (+ first-counter 1) return-list))
+              (else
+               (second-loop (cdr md5-directory2) (cdr files-directory2) (+ second-counter 1)))
+              ))
+          return-list)
+      )))
+
+(define (filter-only-files directory)
+  (let loop ((lst directory)
+             (result-lst '()))
+    (cond
+      ((null? lst)
+       (reverse result-lst))
+      ((string-suffix? (car lst) ".ogg")
+       (loop (cdr lst) (cons (car lst) result-lst)))
+      (else
+       (loop (cdr lst) result-lst)))))
+
+(define (numerical-less? first-string second-string)
+  (define (get-number str)
+    (let loop ((index 0))
+      (cond
+        ((= index (string-length str))
+         #f)
+        ((<= 48 (char->integer (string-ref str index)) 57)
+         (string->number (substring str index (- (string-length str) 4))))
+        (else
+         (loop (+ index 1))))))
+  (let* ((first-number (get-number first-string))
+         (second-number (get-number second-string)))
+    (if (and first-number second-number)
+        (< (get-number first-string) (get-number second-string))
+        #f)))
+
+(define (slice-list lst index)
+  (define-values (lst-prefix lst-postfix) (split-at lst index))
+  (append lst-prefix (cdr lst-postfix)))
+
+(compare-directories "C:\\Users\\nicol\\Google Drive\\Programming\\Racket File Comparer\\md5-file-comparer\\directory1\\" "C:\\Users\\nicol\\Google Drive\\Programming\\Racket File Comparer\\md5-file-comparer\\directory2\\")
